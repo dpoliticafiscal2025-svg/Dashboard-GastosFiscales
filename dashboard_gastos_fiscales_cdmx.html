@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gastos Fiscales · Ciudad de México</title>
+<title>Gastos Fiscales de la Ciudad de México</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;0,900;1,400&display=swap" rel="stylesheet">
@@ -98,8 +98,8 @@
 
 <header>
   <div class="brand">
-    <h1>Gastos Fiscales · Ciudad de México</h1>
-    <div class="sub">Sistema de seguimiento continuo — alimentado en vivo desde Google Sheets</div>
+    <h1>Gastos Fiscales de la Ciudad de México</h1>
+    <div class="sub">Sistema de seguimiento continuo </div>
   </div>
   <div class="meta" id="headerMeta">Cargando…</div>
 </header>
@@ -110,7 +110,7 @@
   <div class="state-msg" id="loadingMsg">Cargando información de la base…</div>
 </main>
 
-<footer>Fuente: Secretaría de Administración y Finanzas de la CDMX · Datos capturados en la base de Gastos Fiscales</footer>
+<footer>Fuente: Secretaría de Administración y Finanzas de la CDMX · Subtesorería de Política Fiscal </footer>
 
 <script>
 // ============================================================
@@ -301,14 +301,14 @@ function renderResumen(years, latestYear, prevYear, corteYear, corteMonth){
       </div>
       <div class="card">
         <h3>¿Qué requiere atención?</h3>
-        <div class="cap">Generado automáticamente — ver detalle en la pestaña "Cambios relevantes"</div>
+        <div class="cap">Cambio mensual</div>
         <div id="alertasResumen"></div>
       </div>
     </div>
     <div class="grid2">
       <div class="card">
         <h3>Principales conceptos</h3>
-        <div class="cap">Top 6 por monto acumulado ${corteYear}</div>
+        <div class="cap">Top 6 por monto de beneficio acumulado ${corteYear}</div>
         <table><thead><tr><th>Concepto</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
         <tbody>${topConceptos.map(([k,v])=>{
           const [tipo,con] = k.split(' · ');
