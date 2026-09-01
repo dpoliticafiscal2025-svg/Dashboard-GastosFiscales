@@ -14,8 +14,7 @@
      ============================================================ */
   const CONFIG = {
     SHEET_ID: '1t44UD8juQencXipGs-aC7NocVlf3Sl_YTTytgXMzECQ',   // ID de tu Google Sheet
-    SHEET_NAME: '01_BASE_GASTOS',        // nombre exacto de la pestaña
-    UMBRAL_CAMBIO_MDP: 10                // a partir de cuántos mdp de variación un concepto se marca como relevante
+    SHEET_NAME: '01_BASE_GASTOS'         // nombre exacto de la pestaña
   };
 </script>
 <style>
@@ -25,6 +24,7 @@
     --dorado:#B28E5C;
     --dorado-dark:#8F7147;
     --gris:#55585A;
+    --azul:#3D6C87;
     --crema:#FFFAE9;
     --grisclaro:#BFB7AF;
     --bg:#F7F6F3;
@@ -107,6 +107,10 @@
   .subtabs button.active{background:var(--guinda);border-color:var(--guinda);color:#fff;font-weight:700;}
   .subview{display:none;}
   .subview.active{display:block;}
+
+  .footnote{font-size:.72rem;color:var(--grisclaro);margin-top:10px;}
+  .footnote sup{color:var(--dorado-dark);}
+  sup.ref{font-size:.7em;color:var(--dorado-dark);font-weight:700;}
 
   footer{text-align:center;padding:24px;color:var(--grisclaro);font-size:.75rem;}
   .note{font-size:.75rem;color:var(--grisclaro);margin-top:10px;font-style:italic;}
@@ -387,24 +391,25 @@ function refreshFilteredViews(){
   renderAnalisis();
 }
 
-// ---------- CAMBIOS (cálculo compartido entre Resumen y Análisis) ----------
-function calcularCambiosPeriodo(){
-  const curRows = getFilteredRows();
-  const prevRows = getPrevYearRows();
-  const curMap = sumBy(curRows, r=>r.tipo+' · '+r.concepto);
-  const prevMap = sumBy(prevRows, r=>r.tipo+' · '+r.concepto);
-  const keys = new Set([...curMap.keys(), ...prevMap.keys()]);
-  const variaciones=[], nuevos=[], desaparecidos=[];
-  keys.forEach(k=>{
-    const curVal = curMap.get(k)||0;
-    const prevVal = prevMap.get(k)||0;
-    const delta = curVal-prevVal;
-    if(prevVal===0 && curVal>0){ nuevos.push({concepto:k, curVal}); return; }
-    if(prevVal>0 && curVal===0){ desaparecidos.push({concepto:k, prevVal}); return; }
-    if(Math.abs(delta) >= CONFIG.UMBRAL_CAMBIO_MDP){ variaciones.push({concepto:k, curVal, prevVal, delta}); }
-  });
-  variaciones.sort((a,b)=> Math.abs(b.delta)-Math.abs(a.delta));
-  return {variaciones, nuevos, desaparecidos};
+// ---------- RANKING (misma lógica que Tops) con agrupación especial de Predial ----------
+// Usado por "Cambios y puntos de atención" (Resumen) — limita a los 2 conceptos más relevantes.
+// Cuando Tipo=Reducciones y coexisten "Predial" y "Predial (pago anticipado)", se agrupan en 1 solo renglón.
+function buildRankingConAgrupacionPredial(rows){
+  const byKey = sumBy(rows, r=>r.tipo+'|'+r.concepto); // Map "tipo|concepto" -> monto
+  const total = [...byKey.values()].reduce((a,b)=>a+b,0);
+
+  const kPred = 'Reducciones|Predial';
+  const kPredAnt = 'Reducciones|Predial (pago anticipado)';
+  const merged = new Map(byKey);
+  let didMerge = false;
+  if(merged.has(kPred) && merged.has(kPredAnt)){
+    const suma = merged.get(kPred) + merged.get(kPredAnt);
+    merged.delete(kPred); merged.delete(kPredAnt);
+    merged.set('Reducciones|Predial¹', suma);
+    didMerge = true;
+  }
+  const ranked = [...merged.entries()].sort((a,b)=>b[1]-a[1]);
+  return {ranked, total, didMerge};
 }
 
 // ============================================================
@@ -416,11 +421,12 @@ function renderResumen(){
   const acumulado = rows.reduce((s,r)=>s+r.monto,0);
   const acumuladoPrev = prevRows.reduce((s,r)=>s+r.monto,0);
   const beneficiarios = rows.reduce((s,r)=>s+r.beneficiarios,0);
-  const deltaInteranual = acumuladoPrev>0 ? (acumulado-acumuladoPrev)/acumuladoPrev : null;
+  const beneficiariosPrev = prevRows.reduce((s,r)=>s+r.beneficiarios,0);
 
-  const porConcepto = sumBy(rows, r=>r.tipo+' · '+r.concepto);
-  const top1 = [...porConcepto.entries()].sort((a,b)=>b[1]-a[1])[0];
-  const concentracion = (top1 && acumulado>0) ? top1[1]/acumulado : null;
+  // Avance = actual/anterior*100 (sin signo, es un porcentaje de avance, no una variación)
+  const avance = acumuladoPrev>0 ? (acumulado/acumuladoPrev*100) : null;
+  // Variación de beneficiarios = (actual/anterior - 1)*100 (con signo)
+  const varBenef = beneficiariosPrev>0 ? ((beneficiarios/beneficiariosPrev)-1)*100 : null;
 
   const meses = monthsInRange(FILTERS.mesIni, FILTERS.mesFin);
   const tiposPresentes = [...new Set(rows.map(d=>d.tipo))];
@@ -428,27 +434,34 @@ function renderResumen(){
   tiposPresentes.forEach(t=> monthlyByTipo[t] = meses.map(()=>0));
   rows.forEach(d=>{ const idx = meses.indexOf(d.mes_num); if(idx>=0) monthlyByTipo[d.tipo][idx]+=d.monto; });
 
-  const {variaciones, nuevos, desaparecidos} = calcularCambiosPeriodo();
+  const {ranked, total, didMerge} = buildRankingConAgrupacionPredial(rows);
+  const top2 = ranked.slice(0,2);
 
   const el = document.getElementById('v-resumen');
   el.innerHTML = `
     <div class="kpis">
       <div class="kpi"><div class="label">Gasto fiscal — ${periodoLabel()}</div><div class="value">${fmt(acumulado)} mdp</div><div class="delta">${fmtInt(rows.length)} registros</div></div>
-      <div class="kpi"><div class="label">Variación interanual</div><div class="value">${deltaInteranual!==null ? (deltaInteranual>=0?'+':'')+fmt(deltaInteranual*100)+'%' : 'n/d'}</div><div class="delta ${deltaInteranual>=0?'pos':'neg'}">vs. ${periodoLabelPrev()}</div></div>
+      <div class="kpi"><div class="label">Avance</div><div class="value">${avance!==null ? fmt(avance)+'%' : 'n/d'}</div><div class="delta">respecto a ${periodoLabelPrev()}</div></div>
       <div class="kpi"><div class="label">Beneficiarios</div><div class="value">${fmtInt(beneficiarios)}</div><div class="delta">${periodoLabel()}</div></div>
-      <div class="kpi"><div class="label">Concentración Top 1</div><div class="value">${concentracion!==null ? fmt(concentracion*100)+'%' : 'n/d'}</div><div class="delta">${top1?top1[0]:'—'}</div></div>
+      <div class="kpi"><div class="label">Variación de beneficiarios</div><div class="value">${varBenef!==null ? (varBenef>=0?'+':'')+fmt(varBenef)+'%' : 'n/d'}</div><div class="delta ${varBenef>=0?'pos':'neg'}">vs. ${periodoLabelPrev()}</div></div>
     </div>
-    <div class="grid2">
-      <div class="card">
-        <h3>Evolución general</h3>
-        <div class="cap">Millones de pesos · ${periodoLabel()}</div>
-        <canvas id="chartResumen" height="150"></canvas>
-      </div>
-      <div class="card">
-        <h3>Cambios y puntos de atención</h3>
-        <div class="cap">${periodoLabel()} vs. ${periodoLabelPrev()} — calculado automáticamente</div>
-        <div id="alertasResumen"></div>
-      </div>
+    <div class="card" style="margin-bottom:16px;">
+      <h3>Evolución general</h3>
+      <div class="cap">Millones de pesos · ${periodoLabel()}</div>
+      <canvas id="chartResumen" height="130"></canvas>
+    </div>
+    <div class="card">
+      <h3>Cambios y puntos de atención</h3>
+      <div class="cap">Conceptos más relevantes del periodo — ${periodoLabel()}</div>
+      <table><thead><tr><th>Tipo</th><th>Concepto</th><th style="text-align:right">Monto (mdp)</th><th>Participación</th></tr></thead>
+      <tbody>${top2.length ? top2.map(([k,v])=>{
+        const [tipo,con] = k.split('|');
+        const pct = total>0 ? (v/total*100) : null;
+        const pctCell = pct!==null ? `<div class="barcell"><div class="fill" style="--pct:${pct}%;"></div><div class="txt">${pct.toFixed(1)}%</div></div>` : `<span class="napct">— no aplica</span>`;
+        const conLabel = con==='Predial¹' ? `Predial<sup class="ref">1</sup>` : con;
+        return `<tr><td>${tagFor(tipo)}</td><td>${conLabel}</td><td style="text-align:right">${fmt(v)}</td><td>${pctCell}</td></tr>`;
+      }).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--grisclaro)">Sin datos para este periodo y filtros.</td></tr>`}</tbody></table>
+      ${didMerge ? `<p class="footnote"><sup>1</sup> Considera Predial pago anticipado.</p>` : ''}
     </div>
   `;
 
@@ -471,26 +484,6 @@ function renderResumen(){
       options:{ plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11,family:'Roboto'}}} } }
     });
   }
-
-  const alEl = document.getElementById('alertasResumen');
-  let html = '';
-  if(concentracion!==null && concentracion>0.5){
-    html += `<div class="alert info"><b>Concentración alta:</b> ${top1[0]} representa ${fmt(concentracion*100)}% del gasto fiscal del periodo.</div>`;
-  }
-  variaciones.slice(0,4).forEach(c=>{
-    const cls = c.delta>=0 ? 'up' : 'down';
-    const arrow = c.delta>=0 ? '▲' : '▼';
-    const pctTxt = c.prevVal>0 ? ` (${(c.delta/c.prevVal*100).toFixed(0)}%)` : '';
-    html += `<div class="alert ${cls}"><b>${c.concepto}:</b> ${arrow} ${fmt(Math.abs(c.delta))} mdp${pctTxt} vs. mismo periodo anterior.</div>`;
-  });
-  if(nuevos.length>0){
-    html += `<div class="alert up"><b>Conceptos nuevos:</b> ${nuevos.map(n=>n.concepto).join(', ')}.</div>`;
-  }
-  if(desaparecidos.length>0){
-    html += `<div class="alert down"><b>Sin movimiento este periodo (tenían monto antes):</b> ${desaparecidos.map(n=>n.concepto).join(', ')}.</div>`;
-  }
-  if(html==='') html = '<div class="alert">Sin variaciones relevantes por encima del umbral configurado para este periodo.</div>';
-  alEl.innerHTML = html;
 }
 
 // ============================================================
@@ -597,27 +590,34 @@ function paintDistribucion(){
   const byConcepto = sumBy(rows, r=>r.concepto);
   const topC = [...byConcepto.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
 
+  // Si el usuario ya filtró por un Tipo de beneficio específico, la gráfica "Por tipo" es
+  // redundante (solo mostraría 1 barra) — se oculta y "Por concepto" ocupa todo el ancho.
+  const ocultarPorTipo = !!FILTERS.tipo;
+
   const target = document.getElementById('sub-distribucion');
-  target.innerHTML = `
-    <div class="grid2">
-      <div class="card"><h3>Por tipo de beneficio</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistTipo" height="160"></canvas></div>
-      <div class="card"><h3>Por concepto (Top 10)</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistConcepto" height="160"></canvas></div>
-    </div>
-  `;
+  target.innerHTML = ocultarPorTipo
+    ? `<div class="card"><h3>Por concepto (Top 10)</h3><div class="cap">Monto — ${periodoLabel()} · Tipo: ${FILTERS.tipo}</div><canvas id="chartDistConcepto" height="110"></canvas></div>`
+    : `<div class="grid2">
+        <div class="card"><h3>Por tipo de beneficio</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistTipo" height="160"></canvas></div>
+        <div class="card"><h3>Por concepto (Top 10)</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistConcepto" height="160"></canvas></div>
+      </div>`;
+
   if(byTipo.size===0){
     target.innerHTML = `<div class="card"><p class="note">No hay datos para el periodo y filtros seleccionados.</p></div>`;
     return;
   }
-  if(window._chDT) window._chDT.destroy();
-  window._chDT = new Chart(document.getElementById('chartDistTipo'), {
-    type:'bar',
-    data:{ labels:[...byTipo.keys()], datasets:[{ data:[...byTipo.values()].map(v=>+v.toFixed(1)), backgroundColor:[...byTipo.keys()].map(t=>COLOR_TIPO[t]) }]},
-    options:{ plugins:{legend:{display:false}} }
-  });
+  if(!ocultarPorTipo){
+    if(window._chDT) window._chDT.destroy();
+    window._chDT = new Chart(document.getElementById('chartDistTipo'), {
+      type:'bar',
+      data:{ labels:[...byTipo.keys()], datasets:[{ data:[...byTipo.values()].map(v=>+v.toFixed(1)), backgroundColor:[...byTipo.keys()].map(t=>COLOR_TIPO[t]) }]},
+      options:{ plugins:{legend:{display:false}} }
+    });
+  }
   if(window._chDC) window._chDC.destroy();
   window._chDC = new Chart(document.getElementById('chartDistConcepto'), {
     type:'bar',
-    data:{ labels:topC.map(d=>d[0]), datasets:[{ data:topC.map(d=>+d[1].toFixed(1)), backgroundColor:'#B28E5C' }]},
+    data:{ labels:topC.map(d=>d[0]), datasets:[{ data:topC.map(d=>+d[1].toFixed(1)), backgroundColor:'#3D6C87' }]},
     options:{ indexAxis:'y', plugins:{legend:{display:false}} }
   });
 }
