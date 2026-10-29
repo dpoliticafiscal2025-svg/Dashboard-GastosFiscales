@@ -13,7 +13,7 @@
      CONFIGURACIÓN — edita solo esta parte para conectar tu Sheet
      ============================================================ */
   const CONFIG = {
-    SHEET_ID: '1t44UD8juQencXipGs-aC7NocVlf3Sl_YTTytgXMzECQ',   // ID de tu Google Sheet
+    SHEET_ID: '1p18E_fywNSQP3sZLQRYV3gTv2LIfO1ZV',
     SHEET_NAME: '01_BASE_GASTOS'         // nombre exacto de la pestaña
   };
 </script>
@@ -131,6 +131,7 @@
   .pagination .controls{display:flex;gap:8px;align-items:center;}
   .pagination button{background:#fff;border:1px solid var(--border);border-radius:7px;padding:7px 11px;color:var(--guinda);font-family:var(--font);cursor:pointer;}
   .pagination button:disabled{opacity:.45;cursor:default;}
+  .detail-muted{color:#686A6B;font-size:.76rem;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
   @media(max-width:650px){header{padding:18px 20px;}header .meta{text-align:left;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
   @media(prefers-reduced-motion:reduce){.view.active{animation:none;}*{scroll-behavior:auto!important;transition:none!important;}}
@@ -140,7 +141,7 @@
 
 <header>
   <div class="brand">
-    <h1>Gastos Fiscales · Ciudad de México</h1>
+    <h1>GASTOS FISCALES DE LA CIUDAD DE MÉXICO</h1>
     <div class="sub">Consulta de gastos fiscales · Datos de Google Sheets al cargar la página</div>
   </div>
   <div class="meta" id="headerMeta">Cargando…</div>
@@ -152,14 +153,14 @@
   <div class="state-msg" id="loadingMsg">Cargando información de la base…</div>
 </main>
 
-<footer>Fuente: Secretaría de Administración y Finanzas de la CDMX · Datos capturados en la base de Gastos Fiscales</footer>
+<footer>SECRETARÍA DE ADMINISTRACIÓN Y FINANZAS DE LA CIUDAD DE MÉXICO<br>TESORERÍA–SUBTESORERÍA DE POLÍTICA FISCAL</footer>
 
 <script>
 // ============================================================
 // 1. CARGA DE DATOS DESDE GOOGLE SHEETS (Google Visualization API)
 // ============================================================
-const COL = {ID:0, EJERCICIO:1, MES_NUM:2, MES:3, TIPO:4, CONCEPTO:5, ARTICULO:6, RANGO:7, AMBITO:8, BENEF:9, MONTO:10};
-const EXPECTED_COLUMNS = ['id_registro','ejercicio','mes_num','mes','tipo_beneficio','concepto','articulo_legal','rango_catastral','ambito_exencion','beneficiarios','monto_mdp'];
+const COL = {ID:0, EJERCICIO:1, MES_NUM:2, MES:3, TIPO:4, CONCEPTO:5, ARTICULO:6, RANGO:7, AMBITO:8, BENEF:9, MONTO:10, CONTRIB:11};
+const MIN_COLUMNS = 12;
 
 function finiteNumber(value){
   if(value === null || value === undefined || value === '') return null;
@@ -181,9 +182,10 @@ async function fetchSheetRows(sheetId, sheetName){
   const json = JSON.parse(text.substring(jsonStart, jsonEnd+1));
   if(json.status !== 'ok' || !json.table || !Array.isArray(json.table.rows))
     throw new Error('Google Sheets no devolvió una tabla válida. Revisa el acceso y el nombre de la pestaña.');
-  const labels = (json.table.cols || []).map(col=>col.label);
-  if(EXPECTED_COLUMNS.some((label,i)=>labels[i] !== label))
-    throw new Error('La estructura de columnas de la hoja cambió. Revisa los encabezados antes de publicar cifras.');
+  if((json.table.cols || []).length < MIN_COLUMNS)
+    throw new Error('La hoja necesita las once columnas originales y la columna final de contribuyentes.');
+  if([COL.EJERCICIO,COL.MES_NUM,COL.BENEF,COL.MONTO,COL.CONTRIB].some(i=>json.table.cols[i].type!=='number'))
+    throw new Error('Las columnas de ejercicio, mes, beneficiarios, monto y contribuyentes deben ser numéricas.');
   const rawRows = json.table.rows;
   const data = [];
   let rejected = 0;
@@ -196,10 +198,12 @@ async function fetchSheetRows(sheetId, sheetName){
     const concepto = get(COL.CONCEPTO);
     const monto = finiteNumber(get(COL.MONTO));
     const beneficiarios = finiteNumber(get(COL.BENEF));
+    const contribuyentes = finiteNumber(get(COL.CONTRIB));
     if(!Number.isInteger(ejercicio) || !Number.isInteger(mesNum) || mesNum<1 || mesNum>12 ||
        !String(tipo ?? '').trim() || !String(concepto ?? '').trim() ||
        (get(COL.MONTO) !== null && monto === null) ||
-       (get(COL.BENEF) !== null && beneficiarios === null)){
+       (get(COL.BENEF) !== null && beneficiarios === null) ||
+       (get(COL.CONTRIB) !== null && contribuyentes === null)){
       rejected++;
       return;
     }
@@ -214,6 +218,7 @@ async function fetchSheetRows(sheetId, sheetName){
       rango: get(COL.RANGO),
       ambito: get(COL.AMBITO),
       beneficiarios,
+      contribuyentes,
       monto
     });
   });
@@ -255,6 +260,12 @@ const PAGE_SIZE = 50;
     });
     FILTERS.year = years[years.length-1];
     if(!window.Chart) throw new Error('No se pudo cargar Chart.js. Comprueba la conexión a internet e intenta nuevamente.');
+    Chart.defaults.plugins.tooltip.callbacks.label = ctx=>{
+      const parsed=ctx.parsed;
+      const value=typeof parsed==='number' ? parsed : (ctx.chart.options.indexAxis==='y' ? parsed.x : parsed.y);
+      return `${ctx.dataset.label ? ctx.dataset.label+': ' : ''}${fmt(value,1)} mdp`;
+    };
+    if(Chart.defaults.scales?.linear?.ticks) Chart.defaults.scales.linear.ticks.callback=value=>fmt(value,1);
     buildDashboard(years);
   }catch(err){
     showError(err.message || 'Ocurrió un error al leer la hoja de cálculo.');
@@ -280,7 +291,7 @@ function buildDashboard(years){
   if(!periodsWithData.length) throw new Error('La base no contiene ningún periodo con montos o beneficiarios capturados.');
   const lastPeriod = periodsWithData[periodsWithData.length-1];
   const [lastYear, lastMonthStr] = lastPeriod.split('-');
-  document.getElementById('headerMeta').innerHTML = `Corte: <b>${MES_NOMBRE_LARGO[parseInt(lastMonthStr)]} ${lastYear}</b><br>${DATA.length.toLocaleString('es-MX')} registros en base`;
+  document.getElementById('headerMeta').innerHTML = `Corte: <b>${MES_NOMBRE_LARGO[parseInt(lastMonthStr)]} ${lastYear}</b>`;
 
   // Resumen y los tres análisis forman un recorrido continuo.
   const navViews = [['v-panorama','Panorama'], ['v-detalle','Detalle']];
@@ -297,7 +308,7 @@ function buildDashboard(years){
       b.setAttribute('aria-current','page');
       nav.querySelectorAll('button').forEach(x=>{ if(x!==b) x.removeAttribute('aria-current'); });
       document.getElementById(id).classList.add('active');
-      document.getElementById('filterbar').style.display = (id==='v-detalle') ? 'none' : 'flex';
+      document.getElementById('filterbar').style.display = 'flex';
       window.scrollTo({top:0,behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});
     };
     nav.appendChild(b);
@@ -314,17 +325,14 @@ function buildDashboard(years){
         <a href="#sub-distribucion">Distribución</a>
         <a href="#sub-tops">Tops</a>
       </div>
-      <div class="data-note" id="dataNote" role="status"></div>
       <section id="v-resumen" aria-labelledby="headingResumen"></section>
       <hr class="section-divider">
-      <section id="v-analisis" aria-labelledby="headingAnalisis"></section>
+      <section id="v-analisis"></section>
     </div>
     <section class="view" id="v-detalle"></section>
   `;
 
   renderFilterBar(years);
-  renderDetalle(); // Detalle: filtros propios, no cambia con FILTERS globales
-
   nav.querySelector('button').click();
   refreshFilteredViews();
 }
@@ -443,6 +451,15 @@ function getPrevYearRows(){
 }
 function sumField(rows, field){ return rows.reduce((sum,row)=>sum+(row[field] ?? 0),0); }
 function hasField(rows, field){ return rows.some(row=>row[field] !== null); }
+function contribuyentesDelPeriodo(year){
+  const {ini,fin}=periodBounds();
+  if(ini===fin){
+    const monthly=getRows(year,fin,fin,FILTERS.tipo,FILTERS.concepto);
+    return hasField(monthly,'beneficiarios') ? sumField(monthly,'beneficiarios') : null;
+  }
+  const terminal=getRows(year,fin,fin,FILTERS.tipo,FILTERS.concepto);
+  return hasField(terminal,'contribuyentes') ? sumField(terminal,'contribuyentes') : null;
+}
 function sumBy(rows, keyFn){
   const m = new Map();
   rows.filter(r=>r.monto!==null).forEach(r=>{ const k=keyFn(r); m.set(k,(m.get(k)||0)+r.monto); });
@@ -471,16 +488,9 @@ function periodoLabelPrev(){
 function refreshFilteredViews(){
   const current=getFilteredRows();
   const previous=getPrevYearRows();
-  const {fin}=periodBounds();
-  const notes=[];
-  if(FILTERS.periodo==='anual' && fin<12 && fin>0) notes.push(`Corte de ${FILTERS.year}: ${MES_NOMBRE_LARGO[fin]}. La comparación usa enero–${MES_NOMBRE_LARGO[fin]} en ambos ejercicios.`);
-  if(current.length && !hasField(current,'monto')) notes.push('Los registros seleccionados aún no tienen monto capturado; se muestran como sin datos, no como cero.');
-  const missing=current.filter(r=>r.monto===null).length;
-  if(missing && hasField(current,'monto')) notes.push(`${fmtInt(missing)} registros seleccionados no tienen monto capturado.`);
-  if(!previous.length && FILTERS.year>Math.min(...YEAR_CUTOFF.keys())) notes.push('No hay registros del ejercicio anterior para esta selección.');
-  document.getElementById('dataNote').textContent=notes.join(' ');
   renderResumen(current,previous);
   renderAnalisis(current,previous);
+  renderDetalle(current);
 }
 
 // ---------- RANKING (misma lógica que Tops) con agrupación especial de Predial ----------
@@ -512,11 +522,14 @@ function renderResumen(rows,prevRows){
   const acumuladoPrev = hasField(prevRows,'monto') ? sumField(prevRows,'monto') : null;
   const beneficiarios = hasField(rows,'beneficiarios') ? sumField(rows,'beneficiarios') : null;
   const beneficiariosPrev = hasField(prevRows,'beneficiarios') ? sumField(prevRows,'beneficiarios') : null;
+  const contribuyentes = contribuyentesDelPeriodo(FILTERS.year);
+  const contribuyentesPrev = contribuyentesDelPeriodo(FILTERS.year-1);
 
   // Avance = actual/anterior*100 (sin signo, es un porcentaje de avance, no una variación)
   const avance = acumulado!==null && acumuladoPrev>0 ? (acumulado/acumuladoPrev*100) : null;
   // Variación de beneficiarios = (actual/anterior - 1)*100 (con signo)
   const varBenef = beneficiarios!==null && beneficiariosPrev>0 ? ((beneficiarios/beneficiariosPrev)-1)*100 : null;
+  const varContrib = contribuyentes!==null && contribuyentesPrev>0 ? ((contribuyentes/contribuyentesPrev)-1)*100 : null;
 
   const {ini,fin}=periodBounds();
   const meses = monthsInRange(ini, fin);
@@ -531,14 +544,16 @@ function renderResumen(rows,prevRows){
   const el = document.getElementById('v-resumen');
   if(resumenChart){ resumenChart.destroy(); resumenChart=null; }
   el.innerHTML = `
-    <div class="section-heading"><h2 id="headingResumen">Resumen ejecutivo</h2><p>Indicadores y conceptos principales del periodo seleccionado.</p></div>
+    <div class="section-heading"><h2 id="headingResumen">Resumen ejecutivo</h2><p>Gasto fiscal, beneficiarios y principales conceptos del periodo.</p></div>
     <div class="kpis">
-      <div class="kpi"><div class="label">Gasto fiscal — ${periodoLabel()}</div><div class="value">${acumulado!==null ? fmt(acumulado)+' mdp' : 'n/d'}</div><div class="delta">${fmtInt(rows.length)} registros en base</div></div>
+      <div class="kpi"><div class="label">Gasto fiscal — ${periodoLabel()}</div><div class="value">${acumulado!==null ? fmt(acumulado)+' mdp' : 'n/d'}</div></div>
       <div class="kpi"><div class="label">Avance</div><div class="value">${avance!==null ? fmt(avance)+'%' : 'n/d'}</div><div class="delta">respecto a ${periodoLabelPrev()}</div></div>
-      <div class="kpi"><div class="label">${FILTERS.periodo==='mensual' ? 'Beneficiarios únicos del mes' : 'Suma de beneficiarios únicos mensuales'}</div><div class="value">${beneficiarios!==null ? fmtInt(beneficiarios) : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
+      <div class="kpi"><div class="label">${ini===fin ? 'Beneficiarios únicos del mes' : 'Suma de beneficiarios únicos mensuales'}</div><div class="value">${beneficiarios!==null ? fmtInt(beneficiarios) : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
       <div class="kpi"><div class="label">Variación de beneficiarios reportados</div><div class="value">${varBenef!==null ? (varBenef>=0?'+':'')+fmt(varBenef)+'%' : 'n/d'}</div><div class="delta ${varBenef!==null?(varBenef>=0?'pos':'neg'):''}">vs. ${periodoLabelPrev()}</div></div>
+      <div class="kpi"><div class="label">${ini===fin ? 'Contribuyentes únicos del mes' : 'Contribuyentes únicos acumulados al periodo'}</div><div class="value">${contribuyentes!==null ? fmtInt(contribuyentes) : 'n/d'}</div><div class="delta">${ini===fin ? periodoLabel() : `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year}`}</div></div>
+      <div class="kpi"><div class="label">Variación de contribuyentes únicos</div><div class="value">${varContrib!==null ? (varContrib>=0?'+':'')+fmt(varContrib)+'%' : 'n/d'}</div><div class="delta ${varContrib!==null?(varContrib>=0?'pos':'neg'):''}">vs. el mismo corte de ${FILTERS.year-1}</div></div>
     </div>
-    ${FILTERS.periodo!=='mensual' ? '<p class="footnote">Los beneficiarios son únicos dentro de cada mes. Una misma persona puede aparecer en varios meses; el acumulado suma los conteos mensuales.</p>' : ''}
+    ${ini!==fin ? '<p class="footnote">Beneficiarios suma los conteos mensuales y puede repetir personas entre meses. Contribuyentes únicos toma el acumulado de enero al mes final de la selección.</p>' : ''}
     <div class="card" style="margin-bottom:16px;">
       <h3>Evolución general</h3>
       <div class="cap">Millones de pesos · ${periodoLabel()}</div>
@@ -564,7 +579,7 @@ function renderResumen(rows,prevRows){
     resumenChart = new Chart(document.getElementById('chartResumen'), {
       type:'line',
       data:{ labels: meses.map(m=>MES_NOMBRE[m]), datasets: tiposPresentes.map(t=>({
-        label:t, data: monthlyByTipo[t], borderColor: COLOR_TIPO[t]||'#999', backgroundColor:(COLOR_TIPO[t]||'#999')+'22',
+        label:t, data: monthlyByTipo[t].map(v=>+v.toFixed(1)), borderColor: COLOR_TIPO[t]||'#999', backgroundColor:(COLOR_TIPO[t]||'#999')+'22',
         tension:.25, fill:false, pointRadius:3
       }))},
       options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10,font:{size:11,family:'Roboto'}}}},
@@ -588,7 +603,6 @@ function renderAnalisis(rows,prevRows){
   const el = document.getElementById('v-analisis');
   if(!el.querySelector('#sub-evolucion')){
     el.innerHTML = `
-      <div class="section-heading"><h2 id="headingAnalisis">Análisis</h2><p>Tendencia, composición y conceptos con mayor monto, en el mismo contexto de filtros.</p></div>
       <section id="sub-evolucion" aria-labelledby="headingEvolucion"></section>
       <section id="sub-distribucion" aria-labelledby="headingDistribucion"></section>
       <section id="sub-tops" aria-labelledby="headingTops"></section>
@@ -611,8 +625,8 @@ function paintEvolucionAnalisis(rows,prevRows){
   const totalPrevByMonth = meses.map(m=>{ const monthRows=prevRows.filter(d=>d.mes_num===m); return hasField(monthRows,'monto') ? sumField(monthRows,'monto') : null; });
 
   let accC=0, accP=0;
-  const acumCur = totalCurByMonth.map(v=>{if(v===null)return null; accC+=v; return +accC.toFixed(2);});
-  const acumPrev = totalPrevByMonth.map(v=>{if(v===null)return null; accP+=v; return +accP.toFixed(2);});
+  const acumCur = totalCurByMonth.map(v=>{if(v===null)return null; accC+=v; return +accC.toFixed(1);});
+  const acumPrev = totalPrevByMonth.map(v=>{if(v===null)return null; accP+=v; return +accP.toFixed(1);});
 
   const totalCur = hasField(rows,'monto') ? sumField(rows,'monto') : null;
   const totalPrev = hasField(prevRows,'monto') ? sumField(prevRows,'monto') : null;
@@ -620,12 +634,12 @@ function paintEvolucionAnalisis(rows,prevRows){
   const target = document.getElementById('sub-evolucion');
   ['evol','acum','vs'].forEach(key=>{if(analysisCharts[key]){analysisCharts[key].destroy();analysisCharts[key]=null;}});
   target.innerHTML = `
-    <div class="section-heading"><h2 id="headingEvolucion">Evolución</h2><p>Comportamiento mensual y comparación con el mismo corte del ejercicio anterior.</p></div>
-    <div class="card" style="margin-bottom:16px;">
+    <div class="section-heading"><h2 id="headingEvolucion">Evolución</h2></div>
+    ${meses.length>1 ? `<div class="card" style="margin-bottom:16px;">
       <h3>Evolución mensual por tipo de beneficio</h3>
       <div class="cap">Millones de pesos · ${periodoLabel()}</div>
       <canvas id="chartEvolLine" height="110" role="img" aria-label="Montos mensuales por tipo de beneficio"></canvas>
-    </div>
+    </div>` : ''}
     <div class="grid2">
       <div class="card">
         <h3>Acumulado progresivo — comparación interanual</h3>
@@ -641,9 +655,9 @@ function paintEvolucionAnalisis(rows,prevRows){
     </div>
   `;
 
-  analysisCharts.evol = new Chart(document.getElementById('chartEvolLine'), {
+  if(meses.length>1) analysisCharts.evol = new Chart(document.getElementById('chartEvolLine'), {
     type:'bar',
-    data:{ labels: meses.map(m=>MES_NOMBRE[m]), datasets: tipos.map(t=>({label:t, data:monthlyCur[t].map((v,i)=>totalCurByMonth[i]===null?null:v), backgroundColor:COLOR_TIPO[t]||'#55585A'})) },
+    data:{ labels: meses.map(m=>MES_NOMBRE[m]), datasets: tipos.map(t=>({label:t, data:monthlyCur[t].map((v,i)=>totalCurByMonth[i]===null?null:+v.toFixed(1)), backgroundColor:COLOR_TIPO[t]||'#55585A'})) },
     options:{ plugins:{legend:{position:'bottom',labels:{font:{family:'Roboto'}}}}, scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true} } }
   });
 
@@ -726,25 +740,15 @@ function paintTopsAnalisis(rows){
 // ============================================================
 // 8. DETALLE — filtros independientes y paginación
 // ============================================================
-function renderDetalle(){
+function renderDetalle(rows){
   const el = document.getElementById('v-detalle');
-  const years = [...new Set(DATA.map(d=>d.ejercicio))].sort((a,b)=>a-b);
-  const tipos = [...new Set(DATA.map(d=>d.tipo))].sort();
+  const {ini,fin}=periodBounds();
   el.innerHTML = `
-    <div class="section-heading"><h2>Detalle de registros</h2><p>Consulta todos los registros de la base con filtros propios.</p></div>
+    <div class="section-heading"><h2>Detalle de registros</h2><p>${periodoLabel()} · Los filtros superiores también se aplican aquí.</p></div>
     <div class="card">
-      <div class="toolbar">
-        <label class="sr-only" for="fYear">Ejercicio del detalle</label>
-        <select id="fYear"><option value="">Todos los ejercicios</option>${years.map(y=>`<option value="${y}">${y}</option>`).join('')}</select>
-        <label class="sr-only" for="fMes">Mes del detalle</label>
-        <select id="fMes"><option value="">Todos los meses</option>${MES_NOMBRE_LARGO.slice(1).map((m,i)=>`<option value="${i+1}">${m}</option>`).join('')}</select>
-        <label class="sr-only" for="fTipo">Tipo de beneficio del detalle</label>
-        <select id="fTipo"><option value="">Todos los tipos</option>${tipos.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}</select>
-        <label class="sr-only" for="fBuscar">Buscar concepto</label>
-        <input type="text" id="fBuscar" placeholder="Buscar concepto…">
-      </div>
-      <div class="table-scroll"><table><caption class="sr-only">Registros de gasto fiscal filtrados</caption><thead><tr><th>Ejercicio</th><th>Mes</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Beneficiarios únicos del mes</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
+      <div class="table-scroll"><table><caption class="sr-only">Registros de gasto fiscal filtrados</caption><thead><tr><th>Ejercicio</th><th>Mes</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Beneficiarios únicos del mes</th><th style="text-align:right">${ini===fin?'Contribuyentes únicos del mes':'Contribuyentes únicos acumulados al corte'}</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
       <tbody id="tbDetalle"></tbody></table></div>
+      ${ini!==fin ? `<p class="footnote">El acumulado de contribuyentes corresponde a enero–${MES_NOMBRE_LARGO[fin]} y se muestra solo en las filas del mes final.</p>` : ''}
       <div class="pagination">
         <span id="detailCount" role="status" aria-live="polite"></span>
         <div class="controls"><button id="prevPage" type="button">Anterior</button><span id="pageLabel"></span><button id="nextPage" type="button">Siguiente</button></div>
@@ -754,27 +758,18 @@ function renderDetalle(){
   const f = id=>document.getElementById(id);
   let page=1;
   function paint(){
-    const y=f('fYear').value, m=f('fMes').value, t=f('fTipo').value, q=f('fBuscar').value.trim().toLocaleLowerCase('es-MX');
-    const rows = DATA.filter(d=>
-      (!y || d.ejercicio===parseInt(y)) &&
-      (!m || d.mes_num===parseInt(m)) &&
-      (!t || d.tipo===t) &&
-      (!q || d.concepto.toLocaleLowerCase('es-MX').includes(q))
-    );
     const pageCount=Math.max(1,Math.ceil(rows.length/PAGE_SIZE));
     page=Math.min(page,pageCount);
     const visible=rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
     f('tbDetalle').innerHTML = visible.map(d=>
-      `<tr><td>${d.ejercicio}</td><td>${MES_NOMBRE[d.mes_num]}</td><td>${tagFor(d.tipo)}</td><td>${escapeHtml(d.concepto)}${d.articulo?` <span style="color:var(--grisclaro)">(art. ${escapeHtml(d.articulo)})</span>`:''}</td>
-       <td style="text-align:right">${d.beneficiarios===null?'n/d':fmtInt(d.beneficiarios)}</td><td style="text-align:right">${d.monto===null?'n/d':fmt(d.monto,3)}</td></tr>`
-    ).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--grisclaro)">Sin resultados para este filtro.</td></tr>';
+      `<tr><td>${d.ejercicio}</td><td>${MES_NOMBRE[d.mes_num]}</td><td>${tagFor(d.tipo)}</td><td>${escapeHtml(d.concepto)}${d.tipo==='Subsidios' && d.concepto==='Predial' && d.rango ? ' '+escapeHtml(d.rango) : ''}${d.articulo?` <span class="detail-muted">(art. ${escapeHtml(d.articulo)})</span>`:''}</td>
+       <td style="text-align:right">${d.beneficiarios===null?'n/d':fmtInt(d.beneficiarios)}</td><td style="text-align:right">${ini===fin ? (d.beneficiarios===null?'n/d':fmtInt(d.beneficiarios)) : (d.mes_num===fin ? (d.contribuyentes===null?'n/d':fmtInt(d.contribuyentes)) : '—')}</td><td style="text-align:right">${d.monto===null?'n/d':fmt(d.monto,1)}</td></tr>`
+    ).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--grisclaro)">Sin resultados para este filtro.</td></tr>';
     f('detailCount').textContent=rows.length ? `Mostrando ${fmtInt((page-1)*PAGE_SIZE+1)}–${fmtInt(Math.min(page*PAGE_SIZE,rows.length))} de ${fmtInt(rows.length)} registros` : '0 registros';
     f('pageLabel').textContent=`Página ${page} de ${pageCount}`;
     f('prevPage').disabled=page<=1;
     f('nextPage').disabled=page>=pageCount;
   }
-  ['fYear','fMes','fTipo'].forEach(id=> f(id).addEventListener('change', ()=>{page=1;paint();}));
-  f('fBuscar').addEventListener('input', ()=>{page=1;paint();});
   f('prevPage').addEventListener('click', ()=>{page--;paint();});
   f('nextPage').addEventListener('click', ()=>{page++;paint();});
   paint();
