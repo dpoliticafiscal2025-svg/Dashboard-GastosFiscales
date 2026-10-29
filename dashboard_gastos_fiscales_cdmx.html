@@ -39,7 +39,8 @@
   header{background:var(--guinda);color:#fff;padding:20px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:4px solid var(--dorado);}
   header .brand{display:flex;flex-direction:column;}
   header h1{font-size:1.4rem;margin:0;font-weight:700;letter-spacing:.2px;}
-  header .sub{font-size:.78rem;color:#F0D9C8;margin-top:3px;font-weight:300;}
+  header .period{font-size:.83rem;color:#FFFAE9;margin-top:6px;font-weight:500;}
+  header .logo{display:block;width:250px;max-width:100%;height:auto;background:#fff;padding:8px 12px;border-radius:8px;}
   header .meta{text-align:right;font-size:.8rem;color:#F0D9C8;font-weight:300;}
   header .meta b{color:#fff;font-weight:700;}
 
@@ -65,7 +66,7 @@
   .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
 
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:18px;}
-  .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;border-top:3px solid var(--dorado);}
+  .kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;border-top:3px solid var(--dorado);text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;}
   .kpi .label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--grisclaro);margin-bottom:6px;font-weight:500;}
   .kpi .value{font-size:1.55rem;font-weight:700;color:var(--gris);}
   .kpi .delta{font-size:.76rem;margin-top:4px;color:var(--grisclaro);}
@@ -132,8 +133,18 @@
   .pagination button{background:#fff;border:1px solid var(--border);border-radius:7px;padding:7px 11px;color:var(--guinda);font-family:var(--font);cursor:pointer;}
   .pagination button:disabled{opacity:.45;cursor:default;}
   .detail-muted{color:#686A6B;font-size:.76rem;}
+  .multi-select{position:relative;min-width:190px;}
+  .multi-select summary{list-style:none;cursor:pointer;padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:.83rem;min-height:36px;}
+  .multi-select summary::-webkit-details-marker{display:none;}
+  .multi-select summary:after{content:"⌄";float:right;margin-left:12px;}
+  .multi-options{position:absolute;z-index:10;top:calc(100% + 4px);left:0;width:min(320px,85vw);max-height:290px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 12px 28px rgba(40,30,30,.15);padding:8px;}
+  .multi-options label{display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:.8rem;text-transform:none;letter-spacing:normal;font-weight:400;color:var(--gris);cursor:pointer;}
+  .multi-options label[hidden]{display:none;}
+  .multi-options label:hover{background:var(--crema);}
+  .multi-clear{width:100%;border:0;background:var(--crema);color:var(--guinda-dark);padding:7px;cursor:pointer;font:500 .8rem var(--font);border-radius:5px;}
+  .chart-donut{max-width:560px;margin:0 auto;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-  @media(max-width:650px){header{padding:18px 20px;}header .meta{text-align:left;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
+  @media(max-width:650px){header{padding:18px 20px;}header .logo{width:210px;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
   @media(prefers-reduced-motion:reduce){.view.active{animation:none;}*{scroll-behavior:auto!important;transition:none!important;}}
 </style>
 </head>
@@ -142,9 +153,9 @@
 <header>
   <div class="brand">
     <h1>GASTOS FISCALES DE LA CIUDAD DE MÉXICO</h1>
-    <div class="sub">Consulta de gastos fiscales · Datos de Google Sheets al cargar la página</div>
+    <div class="period" id="headerMeta">Cargando periodo…</div>
   </div>
-  <div class="meta" id="headerMeta">Cargando…</div>
+  <img class="logo" src="https://dgtc.finanzas.cdmx.gob.mx/user/images/g5_helium/LOGO%20SAF.svg" alt="Secretaría de Administración y Finanzas de la Ciudad de México">
 </header>
 
 <nav id="nav" aria-label="Secciones principales"></nav>
@@ -232,7 +243,7 @@ const COLOR_TIPO = {Subsidios:'#B28E5C', Reducciones:'#5B7A4E', Condonaciones:'#
 const TAG_CLASS = {Subsidios:'sub', Reducciones:'red', Condonaciones:'con', Exenciones:'exe', Disminuciones:'exe'};
 
 let DATA = [];
-let FILTERS = { year:null, periodo:'anual', mesIni:1, mesFin:12, tipo:'', concepto:'' };
+let FILTERS = { year:null, periodo:'anual', mesIni:1, mesFin:12, tipo:'', conceptos:[] };
 let YEAR_CUTOFF = new Map();
 let resumenChart = null;
 let analysisCharts = {evol:null, acum:null, vs:null, tipo:null, concepto:null};
@@ -291,7 +302,7 @@ function buildDashboard(years){
   if(!periodsWithData.length) throw new Error('La base no contiene ningún periodo con montos o beneficiarios capturados.');
   const lastPeriod = periodsWithData[periodsWithData.length-1];
   const [lastYear, lastMonthStr] = lastPeriod.split('-');
-  document.getElementById('headerMeta').innerHTML = `Corte: <b>${MES_NOMBRE_LARGO[parseInt(lastMonthStr)]} ${lastYear}</b>`;
+  document.getElementById('headerMeta').textContent = `Periodo: ${MES_NOMBRE_LARGO[parseInt(lastMonthStr)]} ${lastYear}`;
 
   // Resumen y los tres análisis forman un recorrido continuo.
   const navViews = [['v-panorama','Panorama'], ['v-detalle','Detalle']];
@@ -370,8 +381,14 @@ function renderFilterBar(years){
       <select id="gfTipo"><option value="">Todos</option>${tipos.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}</select>
     </div>
     <div class="fb-group">
-      <label for="gfConcepto">Concepto</label>
-      <select id="gfConcepto"><option value="">Todos</option>${conceptos.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}</select>
+      <label id="conceptLabel">Concepto</label>
+      <details class="multi-select" id="gfConcepto" aria-labelledby="conceptLabel">
+        <summary id="conceptSummary">Todos los conceptos</summary>
+        <div class="multi-options">
+          <button class="multi-clear" id="clearConceptos" type="button">Todos los conceptos</button>
+          ${conceptos.map(c=>`<label><input class="concept-option" type="checkbox" value="${escapeHtml(c)}"> <span>${escapeHtml(c)}</span></label>`).join('')}
+        </div>
+      </details>
     </div>
     <div class="fb-note" id="fbNote" role="status"></div>
   `;
@@ -404,8 +421,43 @@ function renderFilterBar(years){
     FILTERS.mesFin = v;
     refreshFilteredViews();
   });
-  document.getElementById('gfTipo').addEventListener('change', e=>{ FILTERS.tipo=e.target.value; refreshFilteredViews(); });
-  document.getElementById('gfConcepto').addEventListener('change', e=>{ FILTERS.concepto=e.target.value; refreshFilteredViews(); });
+  document.getElementById('gfTipo').addEventListener('change', e=>{
+    FILTERS.tipo=e.target.value;
+    syncConceptOptions();
+    refreshFilteredViews();
+  });
+  document.querySelectorAll('.concept-option').forEach(input=>input.addEventListener('change',()=>{
+    FILTERS.conceptos=[...document.querySelectorAll('.concept-option:checked')].map(input=>input.value);
+    updateConceptSummary();
+    refreshFilteredViews();
+  }));
+  document.getElementById('clearConceptos').addEventListener('click',()=>{
+    FILTERS.conceptos=[];
+    document.querySelectorAll('.concept-option').forEach(input=>{input.checked=false;});
+    updateConceptSummary();
+    refreshFilteredViews();
+  });
+  document.addEventListener('click',event=>{
+    const selector=document.getElementById('gfConcepto');
+    if(selector?.open && !selector.contains(event.target)) selector.open=false;
+  });
+  syncConceptOptions();
+}
+
+function updateConceptSummary(){
+  const count=FILTERS.conceptos.length;
+  document.getElementById('conceptSummary').textContent = count===0 ? 'Todos los conceptos' : count===1 ? FILTERS.conceptos[0] : `${count} conceptos seleccionados`;
+}
+
+function syncConceptOptions(){
+  const valid=new Set(DATA.filter(d=>!FILTERS.tipo || d.tipo===FILTERS.tipo).map(d=>d.concepto));
+  FILTERS.conceptos=FILTERS.conceptos.filter(concepto=>valid.has(concepto));
+  document.querySelectorAll('.concept-option').forEach(input=>{
+    input.disabled=!valid.has(input.value);
+    input.checked=FILTERS.conceptos.includes(input.value);
+    input.closest('label').hidden=input.disabled;
+  });
+  updateConceptSummary();
 }
 
 function applyPeriodoVisibility(){
@@ -437,27 +489,27 @@ function periodBounds(){
     ? {ini:1, fin:YEAR_CUTOFF.get(FILTERS.year)||0}
     : {ini:FILTERS.mesIni, fin:FILTERS.mesFin};
 }
-function getRows(year, mesIni, mesFin, tipo, concepto){
+function getRows(year, mesIni, mesFin, tipo, conceptos){
   return DATA.filter(d=> d.ejercicio===year && d.mes_num>=mesIni && d.mes_num<=mesFin
-    && (!tipo || d.tipo===tipo) && (!concepto || d.concepto===concepto));
+    && (!tipo || d.tipo===tipo) && (!conceptos?.length || conceptos.includes(d.concepto)));
 }
 function getFilteredRows(){
   const {ini,fin}=periodBounds();
-  return getRows(FILTERS.year, ini, fin, FILTERS.tipo, FILTERS.concepto);
+  return getRows(FILTERS.year, ini, fin, FILTERS.tipo, FILTERS.conceptos);
 }
 function getPrevYearRows(){
   const {ini,fin}=periodBounds();
-  return getRows(FILTERS.year-1, ini, fin, FILTERS.tipo, FILTERS.concepto);
+  return getRows(FILTERS.year-1, ini, fin, FILTERS.tipo, FILTERS.conceptos);
 }
 function sumField(rows, field){ return rows.reduce((sum,row)=>sum+(row[field] ?? 0),0); }
 function hasField(rows, field){ return rows.some(row=>row[field] !== null); }
 function contribuyentesDelPeriodo(year){
   const {ini,fin}=periodBounds();
   if(ini===fin){
-    const monthly=getRows(year,fin,fin,FILTERS.tipo,FILTERS.concepto);
+    const monthly=getRows(year,fin,fin,FILTERS.tipo,FILTERS.conceptos);
     return hasField(monthly,'beneficiarios') ? sumField(monthly,'beneficiarios') : null;
   }
-  const terminal=getRows(year,fin,fin,FILTERS.tipo,FILTERS.concepto);
+  const terminal=getRows(year,fin,fin,FILTERS.tipo,FILTERS.conceptos);
   return hasField(terminal,'contribuyentes') ? sumField(terminal,'contribuyentes') : null;
 }
 function sumBy(rows, keyFn){
@@ -468,7 +520,7 @@ function sumBy(rows, keyFn){
 function periodoLabel(){
   if(FILTERS.periodo==='anual'){
     const fin=periodBounds().fin;
-    return fin===12 ? `Año completo ${FILTERS.year}` : fin>0 ? `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year} (al corte)` : `Sin corte disponible para ${FILTERS.year}`;
+    return fin===12 ? `Año completo ${FILTERS.year}` : fin>0 ? `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year}` : `Sin periodo disponible para ${FILTERS.year}`;
   }
   if(FILTERS.periodo==='mensual') return `${MES_NOMBRE_LARGO[FILTERS.mesIni]} ${FILTERS.year}`;
   return `${MES_NOMBRE_LARGO[FILTERS.mesIni]}–${MES_NOMBRE_LARGO[FILTERS.mesFin]} ${FILTERS.year}`;
@@ -476,7 +528,7 @@ function periodoLabel(){
 function periodoLabelPrev(){
   if(FILTERS.periodo==='anual'){
     const fin=periodBounds().fin;
-    return fin===12 ? `Año completo ${FILTERS.year-1}` : fin>0 ? `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year-1}` : `Sin corte equivalente en ${FILTERS.year-1}`;
+    return fin===12 ? `Año completo ${FILTERS.year-1}` : fin>0 ? `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year-1}` : `Sin periodo equivalente en ${FILTERS.year-1}`;
   }
   if(FILTERS.periodo==='mensual') return `${MES_NOMBRE_LARGO[FILTERS.mesIni]} ${FILTERS.year-1}`;
   return `${MES_NOMBRE_LARGO[FILTERS.mesIni]}–${MES_NOMBRE_LARGO[FILTERS.mesFin]} ${FILTERS.year-1}`;
@@ -551,13 +603,12 @@ function renderResumen(rows,prevRows){
       <div class="kpi"><div class="label">${ini===fin ? 'Beneficiarios únicos del mes' : 'Suma de beneficiarios únicos mensuales'}</div><div class="value">${beneficiarios!==null ? fmtInt(beneficiarios) : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
       <div class="kpi"><div class="label">Variación de beneficiarios reportados</div><div class="value">${varBenef!==null ? (varBenef>=0?'+':'')+fmt(varBenef)+'%' : 'n/d'}</div><div class="delta ${varBenef!==null?(varBenef>=0?'pos':'neg'):''}">vs. ${periodoLabelPrev()}</div></div>
       <div class="kpi"><div class="label">${ini===fin ? 'Contribuyentes únicos del mes' : 'Contribuyentes únicos acumulados al periodo'}</div><div class="value">${contribuyentes!==null ? fmtInt(contribuyentes) : 'n/d'}</div><div class="delta">${ini===fin ? periodoLabel() : `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year}`}</div></div>
-      <div class="kpi"><div class="label">Variación de contribuyentes únicos</div><div class="value">${varContrib!==null ? (varContrib>=0?'+':'')+fmt(varContrib)+'%' : 'n/d'}</div><div class="delta ${varContrib!==null?(varContrib>=0?'pos':'neg'):''}">vs. el mismo corte de ${FILTERS.year-1}</div></div>
+      <div class="kpi"><div class="label">Variación de contribuyentes únicos</div><div class="value">${varContrib!==null ? (varContrib>=0?'+':'')+fmt(varContrib)+'%' : 'n/d'}</div><div class="delta ${varContrib!==null?(varContrib>=0?'pos':'neg'):''}">vs. el mismo periodo de ${FILTERS.year-1}</div></div>
     </div>
-    ${ini!==fin ? '<p class="footnote">Beneficiarios suma los conteos mensuales y puede repetir personas entre meses. Contribuyentes únicos toma el acumulado de enero al mes final de la selección.</p>' : ''}
     <div class="card" style="margin-bottom:16px;">
       <h3>Evolución general</h3>
       <div class="cap">Millones de pesos · ${periodoLabel()}</div>
-      ${acumulado!==null ? '<canvas id="chartResumen" height="130" role="img" aria-label="Evolución del gasto fiscal por tipo y mes"></canvas>' : '<p class="note">No hay montos capturados para esta selección.</p>'}
+      ${acumulado!==null ? `<div class="${meses.length===1?'chart-donut':''}"><canvas id="chartResumen" height="130" role="img" aria-label="Evolución del gasto fiscal por tipo y mes"></canvas></div>` : '<p class="note">No hay montos capturados para esta selección.</p>'}
     </div>
     <div class="card">
       <h3>Conceptos principales</h3>
@@ -643,7 +694,7 @@ function paintEvolucionAnalisis(rows,prevRows){
     <div class="grid2">
       <div class="card">
         <h3>Acumulado progresivo — comparación interanual</h3>
-        <div class="cap">${periodoLabel()} vs. ${periodoLabelPrev()}, mismo corte temporal</div>
+        <div class="cap">${periodoLabel()} vs. ${periodoLabelPrev()}, mismos meses</div>
         <canvas id="chartAcumulado" height="150" role="img" aria-label="Acumulado progresivo actual y anterior"></canvas>
       </div>
       <div class="card">
@@ -722,7 +773,7 @@ function paintTopsAnalisis(rows){
 
   const target = document.getElementById('sub-tops');
   target.innerHTML = `
-    <div class="section-heading"><h2 id="headingTops">Tops</h2><p>Diez pares tipo y concepto con mayor monto en la selección actual.</p></div>
+    <div class="section-heading"><h2 id="headingTops">Tops</h2></div>
     <div class="card">
       <h3>Top 10 conceptos por monto</h3>
       <div class="cap">${periodoLabel()} · calculado en vivo sobre los filtros seleccionados</div>
@@ -746,7 +797,7 @@ function renderDetalle(rows){
   el.innerHTML = `
     <div class="section-heading"><h2>Detalle de registros</h2><p>${periodoLabel()} · Los filtros superiores también se aplican aquí.</p></div>
     <div class="card">
-      <div class="table-scroll"><table><caption class="sr-only">Registros de gasto fiscal filtrados</caption><thead><tr><th>Ejercicio</th><th>Mes</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Beneficiarios únicos del mes</th><th style="text-align:right">${ini===fin?'Contribuyentes únicos del mes':'Contribuyentes únicos acumulados al corte'}</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
+      <div class="table-scroll"><table><caption class="sr-only">Registros de gasto fiscal filtrados</caption><thead><tr><th>Ejercicio</th><th>Mes</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Beneficiarios únicos del mes</th><th style="text-align:right">${ini===fin?'Contribuyentes únicos del mes':'Contribuyentes únicos acumulados al periodo'}</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
       <tbody id="tbDetalle"></tbody></table></div>
       ${ini!==fin ? `<p class="footnote">El acumulado de contribuyentes corresponde a enero–${MES_NOMBRE_LARGO[fin]} y se muestra solo en las filas del mes final.</p>` : ''}
       <div class="pagination">
