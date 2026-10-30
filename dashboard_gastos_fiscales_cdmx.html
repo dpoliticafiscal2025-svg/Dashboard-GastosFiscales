@@ -36,11 +36,11 @@
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--gris);font-family:var(--font);font-weight:400;line-height:1.45;}
-  header{background:var(--guinda);color:#fff;padding:20px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:4px solid var(--dorado);}
+  header{background:#fff;color:var(--guinda);padding:20px 32px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;border-bottom:4px solid var(--dorado);}
   header .brand{display:flex;flex-direction:column;}
   header h1{font-size:1.4rem;margin:0;font-weight:700;letter-spacing:.2px;}
-  header .period{font-size:.83rem;color:#FFFAE9;margin-top:6px;font-weight:500;}
-  header .logo{display:block;width:250px;max-width:100%;height:auto;background:#fff;padding:8px 12px;border-radius:8px;}
+  header .period{font-size:.83rem;color:var(--dorado);margin-top:6px;font-weight:700;}
+  header .logo{display:block;width:275px;max-width:100%;height:auto;background:#fff;padding:8px 12px;border-radius:8px;}
   header .meta{text-align:right;font-size:.8rem;color:#F0D9C8;font-weight:300;}
   header .meta b{color:#fff;font-weight:700;}
 
@@ -142,9 +142,11 @@
   .multi-options label[hidden]{display:none;}
   .multi-options label:hover{background:var(--crema);}
   .multi-clear{width:100%;border:0;background:var(--crema);color:var(--guinda-dark);padding:7px;cursor:pointer;font:500 .8rem var(--font);border-radius:5px;}
-  .chart-donut{max-width:560px;margin:0 auto;}
+  .chart-donut{max-width:448px;margin:0 auto;}
+  .chart-scroll{overflow-x:auto;}
+  .chart-scroll-inner{min-width:900px;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-  @media(max-width:650px){header{padding:18px 20px;}header .logo{width:210px;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
+  @media(max-width:650px){header{padding:18px 20px;}header .logo{width:231px;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
   @media(prefers-reduced-motion:reduce){.view.active{animation:none;}*{scroll-behavior:auto!important;transition:none!important;}}
 </style>
 </head>
@@ -241,6 +243,34 @@ const MES_NOMBRE = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oc
 const MES_NOMBRE_LARGO = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const COLOR_TIPO = {Subsidios:'#B28E5C', Reducciones:'#5B7A4E', Condonaciones:'#9D2148', Exenciones:'#6B5A8C', Disminuciones:'#55585A'};
 const TAG_CLASS = {Subsidios:'sub', Reducciones:'red', Condonaciones:'con', Exenciones:'exe', Disminuciones:'exe'};
+const CONTRIBUCION_CATEGORIES = ['Predial','Tenencia','Nóminas','Multas de tránsito','ISAI','Resto de derechos','Suministro de agua','Espectáculos','Loterías'];
+const CONTRIBUCION_BY_CONCEPTO = new Map([
+  ['predial','Predial'],['predial (pago anticipado)','Predial'],['predial pago anticipado','Predial'],
+  ['tenencia','Tenencia'],['nomina','Nóminas'],['nominas','Nóminas'],
+  ['multas de transito','Multas de tránsito'],['isai','ISAI'],
+  ['derechos r.p.p.','Resto de derechos'],['otros derechos','Resto de derechos'],
+  ['derechos del archivo general de notarias','Resto de derechos'],
+  ['derechos por permiso de filmacion en via publica','Resto de derechos'],
+  ['otras contribuciones','Resto de derechos'],['resto de derechos','Resto de derechos'],
+  ['suministro de agua','Suministro de agua'],['espectaculos','Espectáculos'],
+  ['loterias, rifas, sorteos y concursos','Loterías']
+]);
+
+function categoriaContribucion(concepto){
+  const normalized=String(concepto||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase().replace(/\s+/g,' ');
+  return CONTRIBUCION_BY_CONCEPTO.get(normalized)||null;
+}
+
+function agruparContribuciones(rows){
+  const amounts=new Map();
+  const unclassified=new Set();
+  rows.filter(row=>row.monto!==null).forEach(row=>{
+    const category=categoriaContribucion(row.concepto);
+    if(category) amounts.set(category,(amounts.get(category)||0)+row.monto);
+    else unclassified.add(row.concepto);
+  });
+  return {amounts, unclassified:[...unclassified].sort()};
+}
 
 let DATA = [];
 let FILTERS = { year:null, periodo:'anual', mesIni:1, mesFin:12, tipo:'', conceptos:[] };
@@ -596,9 +626,9 @@ function renderResumen(rows,prevRows){
   const el = document.getElementById('v-resumen');
   if(resumenChart){ resumenChart.destroy(); resumenChart=null; }
   el.innerHTML = `
-    <div class="section-heading"><h2 id="headingResumen">Resumen ejecutivo</h2><p>Gasto fiscal, beneficiarios y principales conceptos del periodo.</p></div>
+    <div class="section-heading"><h2 id="headingResumen">Resumen ejecutivo</h2><p>Gasto fiscal y beneficiarios del periodo.</p></div>
     <div class="kpis">
-      <div class="kpi"><div class="label">Gasto fiscal — ${periodoLabel()}</div><div class="value">${acumulado!==null ? fmt(acumulado)+' mdp' : 'n/d'}</div></div>
+      <div class="kpi"><div class="label">Gasto fiscal</div><div class="value">${acumulado!==null ? fmt(acumulado)+' mdp' : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
       <div class="kpi"><div class="label">Avance</div><div class="value">${avance!==null ? fmt(avance)+'%' : 'n/d'}</div><div class="delta">respecto a ${periodoLabelPrev()}</div></div>
       <div class="kpi"><div class="label">${ini===fin ? 'Beneficiarios únicos del mes' : 'Suma de beneficiarios únicos mensuales'}</div><div class="value">${beneficiarios!==null ? fmtInt(beneficiarios) : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
       <div class="kpi"><div class="label">Variación de beneficiarios reportados</div><div class="value">${varBenef!==null ? (varBenef>=0?'+':'')+fmt(varBenef)+'%' : 'n/d'}</div><div class="delta ${varBenef!==null?(varBenef>=0?'pos':'neg'):''}">vs. ${periodoLabelPrev()}</div></div>
@@ -639,10 +669,28 @@ function renderResumen(rows,prevRows){
   } else {
     const totalPorTipo = {};
     tiposPresentes.forEach(t=> totalPorTipo[t] = monthlyByTipo[t].reduce((a,b)=>a+b,0));
+    const centerTotal = {
+      id:'centerTotal',
+      afterDatasetsDraw(chart){
+        const arc=chart.getDatasetMeta(0).data[0];
+        if(!arc) return;
+        const {ctx}=chart;
+        ctx.save();
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+        ctx.fillStyle='#55585A';
+        ctx.font='700 17px Roboto, Arial, sans-serif';
+        ctx.fillText(fmt(acumulado,1),arc.x,arc.y-9);
+        ctx.font='500 11px Roboto, Arial, sans-serif';
+        ctx.fillText('mdp',arc.x,arc.y+11);
+        ctx.restore();
+      }
+    };
     resumenChart = new Chart(document.getElementById('chartResumen'), {
       type:'doughnut',
       data:{ labels:Object.keys(totalPorTipo), datasets:[{ data:Object.values(totalPorTipo).map(v=>+v.toFixed(1)), backgroundColor:Object.keys(totalPorTipo).map(t=>COLOR_TIPO[t]) }]},
-      options:{ plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11,family:'Roboto'}}} } }
+      options:{ cutout:'70%', plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:11,family:'Roboto'}}} } },
+      plugins:[centerTotal]
     });
   }
 }
@@ -689,7 +737,7 @@ function paintEvolucionAnalisis(rows,prevRows){
     ${meses.length>1 ? `<div class="card" style="margin-bottom:16px;">
       <h3>Evolución mensual por tipo de beneficio</h3>
       <div class="cap">Millones de pesos · ${periodoLabel()}</div>
-      <canvas id="chartEvolLine" height="110" role="img" aria-label="Montos mensuales por tipo de beneficio"></canvas>
+      <div class="chart-scroll"><div class="chart-scroll-inner"><canvas id="chartEvolLine" height="110" role="img" aria-label="Montos mensuales por tipo de beneficio y total de cada mes"></canvas></div></div>
     </div>` : ''}
     <div class="grid2">
       <div class="card">
@@ -706,11 +754,29 @@ function paintEvolucionAnalisis(rows,prevRows){
     </div>
   `;
 
-  if(meses.length>1) analysisCharts.evol = new Chart(document.getElementById('chartEvolLine'), {
-    type:'bar',
-    data:{ labels: meses.map(m=>MES_NOMBRE[m]), datasets: tipos.map(t=>({label:t, data:monthlyCur[t].map((v,i)=>totalCurByMonth[i]===null?null:+v.toFixed(1)), backgroundColor:COLOR_TIPO[t]||'#55585A'})) },
-    options:{ plugins:{legend:{position:'bottom',labels:{font:{family:'Roboto'}}}}, scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true} } }
-  });
+  if(meses.length>1){
+    const totalLabels={
+      id:'monthlyTotals',
+      afterDatasetsDraw(chart){
+        const {ctx,scales:{x,y}}=chart;
+        ctx.save();
+        ctx.fillStyle='#55585A';
+        ctx.font='600 11px Roboto, Arial, sans-serif';
+        ctx.textAlign='center';
+        ctx.textBaseline='bottom';
+        totalCurByMonth.forEach((total,i)=>{
+          if(total!==null) ctx.fillText(fmt(total,1),x.getPixelForValue(i),y.getPixelForValue(total)-5);
+        });
+        ctx.restore();
+      }
+    };
+    analysisCharts.evol = new Chart(document.getElementById('chartEvolLine'), {
+      type:'bar',
+      data:{ labels: meses.map(m=>MES_NOMBRE[m]), datasets: tipos.map(t=>({label:t, data:monthlyCur[t].map((v,i)=>totalCurByMonth[i]===null?null:v), backgroundColor:COLOR_TIPO[t]||'#55585A'})) },
+      options:{ layout:{padding:{top:22}}, plugins:{legend:{position:'bottom',labels:{font:{family:'Roboto'}}}}, scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true,suggestedMax:Math.max(0,...totalCurByMonth.filter(v=>v!==null))*1.14} } },
+      plugins:[totalLabels]
+    });
+  }
 
   analysisCharts.acum = new Chart(document.getElementById('chartAcumulado'), {
     type:'line',
@@ -730,20 +796,21 @@ function paintEvolucionAnalisis(rows,prevRows){
 
 function paintDistribucion(rows){
   const byTipo = sumBy(rows, r=>r.tipo);
-  const byConcepto = sumBy(rows, r=>r.concepto);
-  const topC = [...byConcepto.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const {amounts:byContribucion,unclassified}=agruparContribuciones(rows);
+  const categorias=CONTRIBUCION_CATEGORIES.filter(category=>byContribucion.has(category));
+  const contribucionNote='<p class="footnote">1/ Considera derechos del Registro Público de la Propiedad y de Comercio, por la expedición de constancias, por el uso de la vía pública y por la prestación de otros servicios.</p>';
+  const unclassifiedNote=unclassified.length ? `<p class="footnote">Conceptos fuera de las nueve categorías: ${unclassified.map(escapeHtml).join(', ')}.</p>` : '';
 
-  // Si el usuario ya filtró por un Tipo de beneficio específico, la gráfica "Por tipo" es
-  // redundante (solo mostraría 1 barra) — se oculta y "Por concepto" ocupa todo el ancho.
+  // Con un solo tipo de beneficio, la gráfica por tipo es redundante.
   const ocultarPorTipo = !!FILTERS.tipo;
 
   const target = document.getElementById('sub-distribucion');
   ['tipo','concepto'].forEach(key=>{if(analysisCharts[key]){analysisCharts[key].destroy();analysisCharts[key]=null;}});
-  target.innerHTML = `<div class="section-heading"><h2 id="headingDistribucion">Distribución</h2><p>Composición del monto por tipo y por concepto.</p></div>` + (ocultarPorTipo
-    ? `<div class="card"><h3>Por concepto (Top 10)</h3><div class="cap">Monto — ${periodoLabel()} · Tipo: ${escapeHtml(FILTERS.tipo)}</div><canvas id="chartDistConcepto" height="110" role="img" aria-label="Diez conceptos con mayor monto"></canvas></div>`
+  target.innerHTML = `<div class="section-heading"><h2 id="headingDistribucion">Distribución</h2><p>Composición del monto por tipo de beneficio y tipo de contribución.</p></div>` + (ocultarPorTipo
+    ? `<div class="card"><h3>Por tipo de contribución</h3><div class="cap">Monto — ${periodoLabel()} · Tipo: ${escapeHtml(FILTERS.tipo)}</div><canvas id="chartDistConcepto" height="110" role="img" aria-label="Montos por tipo de contribución"></canvas>${contribucionNote}${unclassifiedNote}</div>`
     : `<div class="grid2">
         <div class="card"><h3>Por tipo de beneficio</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistTipo" height="160" role="img" aria-label="Montos por tipo de beneficio"></canvas></div>
-        <div class="card"><h3>Por concepto (Top 10)</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistConcepto" height="160" role="img" aria-label="Diez conceptos con mayor monto"></canvas></div>
+        <div class="card"><h3>Por tipo de contribución</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistConcepto" height="160" role="img" aria-label="Montos por tipo de contribución"></canvas>${contribucionNote}${unclassifiedNote}</div>
       </div>`);
 
   if(byTipo.size===0){
@@ -759,11 +826,15 @@ function paintDistribucion(rows){
       options:{ plugins:{legend:{display:false}} }
     });
   }
-  analysisCharts.concepto = new Chart(document.getElementById('chartDistConcepto'), {
-    type:'bar',
-    data:{ labels:topC.map(d=>d[0]), datasets:[{ data:topC.map(d=>+d[1].toFixed(1)), backgroundColor:'#3D6C87' }]},
-    options:{ indexAxis:'y', plugins:{legend:{display:false}} }
-  });
+  if(categorias.length){
+    analysisCharts.concepto = new Chart(document.getElementById('chartDistConcepto'), {
+      type:'bar',
+      data:{ labels:categorias.map(category=>category==='Resto de derechos'?'Resto de derechos¹':category), datasets:[{ data:categorias.map(category=>byContribucion.get(category)), backgroundColor:'#3D6C87' }]},
+      options:{ indexAxis:'y', plugins:{legend:{display:false}} }
+    });
+  } else {
+    document.getElementById('chartDistConcepto').replaceWith(Object.assign(document.createElement('p'),{className:'note',textContent:'No hay montos clasificados en estas nueve categorías para la selección.'}));
+  }
 }
 
 function paintTopsAnalisis(rows){
