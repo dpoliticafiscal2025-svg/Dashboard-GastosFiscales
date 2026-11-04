@@ -40,7 +40,7 @@
   header .brand{display:flex;flex-direction:column;}
   header h1{font-size:1.4rem;margin:0;font-weight:700;letter-spacing:.2px;}
   header .period{font-size:.83rem;color:var(--dorado);margin-top:6px;font-weight:700;}
-  header .logo{display:block;width:275px;max-width:100%;height:auto;background:#fff;padding:8px 12px;border-radius:8px;}
+  header .logo{display:block;width:303px;max-width:100%;height:auto;background:#fff;padding:8px 12px;border-radius:8px;}
   header .meta{text-align:right;font-size:.8rem;color:#F0D9C8;font-weight:300;}
   header .meta b{color:#fff;font-weight:700;}
 
@@ -146,7 +146,7 @@
   .chart-scroll{overflow-x:auto;}
   .chart-scroll-inner{min-width:900px;}
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
-  @media(max-width:650px){header{padding:18px 20px;}header .logo{width:231px;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
+  @media(max-width:650px){header{padding:18px 20px;}header .logo{width:254px;}nav{padding:0 12px;}main{padding:18px 14px 50px;}.filterbar{gap:12px;}.fb-group{flex:1 1 145px;}.fb-group select{width:100%;}.card{padding:15px;}}
   @media(prefers-reduced-motion:reduce){.view.active{animation:none;}*{scroll-behavior:auto!important;transition:none!important;}}
 
   /* V5: composición ejecutiva inspirada en el reel, con identidad SAF */
@@ -157,7 +157,7 @@
   header .brand{gap:2px;max-width:780px;}
   header h1{font-size:clamp(1.36rem,2vw,1.9rem);line-height:1.18;letter-spacing:-.035em;color:var(--guinda);}
   header .period{align-self:flex-start;margin-top:9px;padding:6px 11px;border-radius:999px;background:#F9F2E9;color:var(--dorado-dark);font-size:.78rem;letter-spacing:.01em;}
-  header .logo{width:275px;padding:0;background:transparent;border-radius:0;flex-shrink:0;}
+  header .logo{width:303px;padding:0;background:transparent;border-radius:0;flex-shrink:0;}
   nav{display:flex;justify-content:center;gap:7px;background:transparent;padding:14px 24px 0;overflow-x:auto;}
   nav button{padding:9px 22px;border:1px solid transparent;border-radius:999px;color:var(--gris);background:transparent;font-size:.83rem;font-weight:700;transition:background-color .25s ease,color .25s ease,transform .25s ease,box-shadow .25s ease;}
   nav button:hover{color:var(--guinda);background:#FFF9F8;transform:translateY(-1px);}
@@ -217,7 +217,7 @@
   footer{border-top:1px solid var(--border);padding:28px 16px 36px;color:#77716C;line-height:1.75;letter-spacing:.035em;}
   @media(max-width:1120px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr));}.kpi:first-child,.kpi:nth-child(5){grid-column:auto;}.summary-panels{grid-template-columns:1fr;}}
   @media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr;}nav{justify-content:flex-start;}}
-  @media(max-width:680px){header{min-height:0;padding:22px 18px;gap:18px;}header h1{font-size:1.42rem;}header .logo{width:222px;}nav{padding:12px 16px 0;}main{padding:18px 16px 54px;}.filterbar{padding:16px;gap:12px;}.fb-group{flex:1 1 138px;min-width:0;}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;}.kpi:first-child,.kpi:nth-child(5){grid-column:span 2;}.kpi{min-height:128px;padding:16px 13px;}.kpi .value{font-size:1.45rem;}.card{padding:18px 16px;}.summary-panels .table-scroll table{min-width:440px;}.section-index{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px;}.section-index a{white-space:nowrap;}.multi-options{left:auto;right:0;}}
+  @media(max-width:680px){header{min-height:0;padding:22px 18px;gap:18px;}header h1{font-size:1.42rem;}header .logo{width:244px;}nav{padding:12px 16px 0;}main{padding:18px 16px 54px;}.filterbar{padding:16px;gap:12px;}.fb-group{flex:1 1 138px;min-width:0;}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;}.kpi:first-child,.kpi:nth-child(5){grid-column:span 2;}.kpi{min-height:128px;padding:16px 13px;}.kpi .value{font-size:1.45rem;}.card{padding:18px 16px;}.summary-panels .table-scroll table{min-width:440px;}.section-index{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px;}.section-index a{white-space:nowrap;}.multi-options{left:auto;right:0;}}
   @media(max-width:390px){.kpis{grid-template-columns:1fr;}.kpi:first-child,.kpi:nth-child(5){grid-column:auto;}.kpi{min-height:116px;}}
   @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto;}.view.active{animation:none;}.kpi,.card,nav button{transition:none;}.kpi:hover,.card:hover,nav button:hover{transform:none;}}
 </style>
@@ -882,7 +882,7 @@ function paintDistribucion(rows){
 
   const target = document.getElementById('sub-distribucion');
   ['tipo','concepto'].forEach(key=>{if(analysisCharts[key]){analysisCharts[key].destroy();analysisCharts[key]=null;}});
-  target.innerHTML = `<div class="section-heading"><h2 id="headingDistribucion">Distribución</h2><p>Composición del monto por tipo de beneficio y tipo de contribución.</p></div>` + (ocultarPorTipo
+  target.innerHTML = `<div class="section-heading"><h2 id="headingDistribucion">Distribución</h2></div>` + (ocultarPorTipo
     ? `<div class="card"><h3>Por tipo de contribución</h3><div class="cap">Monto — ${periodoLabel()} · Tipo: ${escapeHtml(FILTERS.tipo)}</div><canvas id="chartDistConcepto" height="110" role="img" aria-label="Montos por tipo de contribución"></canvas>${contribucionNote}${unclassifiedNote}</div>`
     : `<div class="grid2">
         <div class="card"><h3>Por tipo de beneficio</h3><div class="cap">Monto — ${periodoLabel()}</div><canvas id="chartDistTipo" height="160" role="img" aria-label="Montos por tipo de beneficio"></canvas></div>
@@ -923,7 +923,7 @@ function paintTopsAnalisis(rows){
     <div class="section-heading"><h2 id="headingTops">Tops</h2></div>
     <div class="card">
       <h3>Top 10 conceptos por monto</h3>
-      <div class="cap">${periodoLabel()} · calculado en vivo sobre los filtros seleccionados</div>
+      <div class="cap">${periodoLabel()}</div>
       <div class="table-scroll"><table><thead><tr><th>#</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Monto (mdp)</th><th>Participación</th></tr></thead>
       <tbody>${top10.length ? top10.map(([k,v],i)=>{
         const [tipo,con] = JSON.parse(k);
@@ -942,7 +942,7 @@ function renderDetalle(rows){
   const el = document.getElementById('v-detalle');
   const {ini,fin}=periodBounds();
   el.innerHTML = `
-    <div class="section-heading"><h2>Detalle de registros</h2><p>${periodoLabel()} · Los filtros superiores también se aplican aquí.</p></div>
+    <div class="section-heading"><h2>Detalle de registros</h2><p>${periodoLabel()}</p></div>
     <div class="card">
       <div class="table-scroll"><table><caption class="sr-only">Registros de gasto fiscal filtrados</caption><thead><tr><th>Ejercicio</th><th>Mes</th><th>Tipo</th><th>Concepto</th><th style="text-align:right">Beneficiarios únicos del mes</th><th style="text-align:right">${ini===fin?'Contribuyentes únicos del mes':'Contribuyentes únicos acumulados al periodo'}</th><th style="text-align:right">Monto (mdp)</th></tr></thead>
       <tbody id="tbDetalle"></tbody></table></div>
