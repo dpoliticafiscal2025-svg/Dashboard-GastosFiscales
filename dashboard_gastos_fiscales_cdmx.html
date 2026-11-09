@@ -188,15 +188,22 @@
   .kpi:first-child{grid-column:auto;}
   .kpi:first-child{background:linear-gradient(125deg,#7A1938 0%,#9D2148 74%,#AE3D60 100%);border-color:transparent;box-shadow:0 16px 34px rgba(122,25,56,.18);}
   .kpi:first-child::after{content:"";position:absolute;right:-65px;top:-105px;width:245px;height:245px;border:1px solid rgba(255,255,255,.16);border-radius:50%;box-shadow:0 0 0 45px rgba(255,255,255,.035),0 0 0 100px rgba(255,255,255,.025);pointer-events:none;}
+  .kpi.contribuyentes{background:linear-gradient(135deg,#FFFDF8,#F6EBDC);border-color:#EAD9BC;}
   .kpi .label{z-index:1;margin-bottom:10px;color:#6C6967;font-size:.68rem;font-weight:700;letter-spacing:.075em;}
   .kpi .value{z-index:1;color:var(--ink);font-size:clamp(1.38rem,2.25vw,2.05rem);line-height:1.12;letter-spacing:-.035em;font-variant-numeric:tabular-nums;}
   .kpi .delta{z-index:1;margin-top:9px;color:#6C6967;font-size:.76rem;}
   .kpi:first-child .label,.kpi:first-child .value,.kpi:first-child .delta{color:#fff;}
+  .kpi.contribuyentes .value{color:var(--guinda-dark);}
   .summary-panels{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:16px;align-items:stretch;}
   .summary-panels>.card{min-width:0;}
   .card{min-width:0;padding:22px 24px;border:1px solid var(--border);border-radius:18px;background:#fff;box-shadow:var(--shadow);transition:transform .25s ease,box-shadow .25s ease;}
   .card h3{margin-bottom:4px;color:var(--ink);font-size:1.02rem;letter-spacing:-.02em;}
   .card .cap{margin-bottom:17px;color:var(--soft);font-size:.76rem;}
+  .comparison-kpi{display:inline-flex;align-items:center;justify-content:space-between;gap:18px;max-width:100%;margin-top:16px;padding:11px 15px;border:1px solid #EAD9BC;border-radius:12px;background:linear-gradient(135deg,#FFFDF8,#F8F0E3);}
+  .comparison-kpi .label{color:var(--soft);font-size:.74rem;font-weight:500;}
+  .comparison-kpi .value{color:var(--guinda-dark);font-size:1.18rem;font-weight:700;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .comparison-kpi .value.pos{color:var(--pos);}
+  .comparison-kpi .value.neg{color:var(--neg);}
   .summary-panels .table-scroll table{min-width:0;width:100%;font-size:.76rem;}
   .summary-panels th,.summary-panels td{padding:10px 6px;}
   .grid2{grid-template-columns:minmax(0,1.18fr) minmax(0,.82fr);gap:16px;}
@@ -217,6 +224,7 @@
   @media(max-width:850px){.grid2,.grid3{grid-template-columns:1fr;}nav{justify-content:flex-start;}}
   @media(max-width:680px){header{min-height:0;padding:22px 18px;gap:18px;}header h1{font-size:1.42rem;}header .logo{width:244px;}nav{padding:12px 16px 0;}main{padding:18px 16px 54px;}.filterbar{padding:16px;gap:12px;}.fb-group{flex:1 1 138px;min-width:0;}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;}.kpi{min-height:128px;padding:16px 13px;}.kpi .value{font-size:1.45rem;}.card{padding:18px 16px;}.summary-panels .table-scroll table{min-width:440px;}.section-index{overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px;}.section-index a{white-space:nowrap;}.multi-options{left:auto;right:0;}}
   @media(max-width:390px){.kpis{grid-template-columns:1fr;}.kpi{min-height:116px;}}
+  @media(max-width:390px){.comparison-kpi{display:flex;width:100%;}}
   @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto;}.view.active{animation:none;}.kpi,.card,nav button{transition:none;}.kpi:hover,.card:hover,nav button:hover{transform:none;}}
 </style>
 </head>
@@ -705,7 +713,7 @@ function renderResumen(rows,prevRows){
     <div class="kpis">
       <div class="kpi"><div class="label">Gasto fiscal</div><div class="value">${acumulado!==null ? fmt(acumulado)+' mdp' : 'n/d'}</div><div class="delta">${periodoLabel()}</div></div>
       <div class="kpi"><div class="label">Avance</div><div class="value">${avance!==null ? fmt(avance)+'%' : 'n/d'}</div><div class="delta">respecto a ${periodoLabelPrev()}</div></div>
-      <div class="kpi"><div class="label">${ini===fin ? 'Contribuyentes únicos del mes' : 'Contribuyentes únicos acumulados al periodo'}</div><div class="value">${contribuyentes!==null ? fmtInt(contribuyentes) : 'n/d'}</div><div class="delta">${ini===fin ? periodoLabel() : `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year}`}</div></div>
+      <div class="kpi contribuyentes"><div class="label">${ini===fin ? 'Contribuyentes únicos del mes' : 'Contribuyentes únicos acumulados al periodo'}</div><div class="value">${contribuyentes!==null ? fmtInt(contribuyentes) : 'n/d'}</div><div class="delta">${ini===fin ? periodoLabel() : `Enero–${MES_NOMBRE_LARGO[fin]} ${FILTERS.year}`}</div></div>
       <div class="kpi"><div class="label">Variación de contribuyentes únicos</div><div class="value">${varContrib!==null ? (varContrib>=0?'+':'')+fmt(varContrib)+'%' : 'n/d'}</div><div class="delta ${varContrib!==null?(varContrib>=0?'pos':'neg'):''}">vs. el mismo periodo de ${FILTERS.year-1}</div></div>
     </div>
   `;
@@ -798,6 +806,8 @@ function paintEvolucionAnalisis(rows,prevRows){
 
   const totalCur = hasField(rows,'monto') ? sumField(rows,'monto') : null;
   const totalPrev = hasField(prevRows,'monto') ? sumField(prevRows,'monto') : null;
+  const variacionTotal = totalCur!==null && totalPrev>0 ? (totalCur/totalPrev-1)*100 : null;
+  const variacionMostrada = variacionTotal!==null ? (Math.round(variacionTotal*10)/10 || 0) : null;
 
   const target = document.getElementById('sub-evolucion');
   ['evol','acum','vs'].forEach(key=>{if(analysisCharts[key]){analysisCharts[key].destroy();analysisCharts[key]=null;}});
@@ -811,14 +821,18 @@ function paintEvolucionAnalisis(rows,prevRows){
     <div id="summary-panels-slot" style="margin-bottom:16px;"></div>
     <div class="grid2">
       <div class="card">
-        <h3>Acumulado progresivo — comparación interanual</h3>
+        <h3>Acumulado progresivo</h3>
         <div class="cap">${periodoLabel()} vs. ${periodoLabelPrev()}, mismos meses</div>
         <canvas id="chartAcumulado" height="150" role="img" aria-label="Acumulado progresivo actual y anterior"></canvas>
       </div>
       <div class="card">
-        <h3>Total del periodo — comparación</h3>
+        <h3>Total del periodo</h3>
         <div class="cap">${periodoLabel()} vs. ${periodoLabelPrev()}</div>
         <canvas id="chartVsAnterior" height="150" role="img" aria-label="Comparación de totales de ambos periodos"></canvas>
+        <div class="comparison-kpi" aria-label="Variación porcentual del monto entre ejercicios">
+          <span class="label">Variación ${FILTERS.year} vs. ${FILTERS.year-1}</span>
+          <strong class="value ${variacionMostrada!==null?(variacionMostrada>0?'pos':variacionMostrada<0?'neg':''):''}">${variacionMostrada!==null ? (variacionMostrada>0?'+':'')+fmt(variacionMostrada)+'%' : 'n/d'}</strong>
+        </div>
         <p class="note">${totalPrev===null ? 'No hay datos del periodo equivalente en el año anterior para comparar.' : ''}</p>
       </div>
     </div>
